@@ -1,0 +1,85 @@
+name:                project-utilities
+version:             0.1.0.0
+-- synopsis:
+-- description:
+license:             BSD3
+license-file:        LICENSE
+author:              Fraser Murray
+maintainer:          fraser.m.murray@gmail.com
+-- copyright:
+-- category:
+build-type:          Simple
+-- extra-source-files:
+cabal-version:       >=1.10
+
+executable comment-to-arff
+  main-is:             Main.hs
+  other-modules:
+  build-depends:
+    base >=4.7 && <4.8,
+    strict,
+    text,
+    transformers
+  hs-source-dirs:      comment-to-arff
+  default-language:    Haskell2010
+  default-extensions:
+    LambdaCase
+    OverloadedStrings
+
+executable pull-comments
+  main-is:             Main.hs
+  other-modules:
+  build-depends:
+    base >=4.7 && <4.8,
+    async,
+    reddit,
+    text,
+    stm,
+    stm-chans,
+    transformers
+  hs-source-dirs:      pull-comments
+  default-language:    Haskell2010
+  default-extensions:
+    LambdaCase
+    OverloadedStrings
+    ViewPatterns
+  ghc-options: -Wall
+
+executable produce-results
+  main-is:             Main.hs
+  other-modules:
+  build-depends:
+    base >=4.7 && <4.8,
+    array,
+    containers,
+    data-counter,
+    mtl,
+    naive-bayes,
+    random,
+    text
+  hs-source-dirs:      produce-results
+  default-language:    Haskell2010
+  default-extensions:
+    LambdaCase
+    OverloadedStrings
+    ViewPatterns
+  ghc-options: -Wall -O2
+
+executable hnn-test
+  main-is:             Main.hs
+  other-modules:
+  build-depends:
+    base >=4.7 && <4.8,
+    data-counter,
+    hnn,
+    naive-bayes,
+    strict,
+    text,
+    vector
+  hs-source-dirs:      hnn-test
+  default-language:    Haskell2010
+  default-extensions:
+    LambdaCase
+    OverloadedStrings
+    ViewPatterns
+  ghc-options: -Wall -O2
