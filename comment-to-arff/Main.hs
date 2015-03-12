@@ -38,12 +38,12 @@ convert file = do
     , "@attribute content string"
     , ""
     , "@data" ]
-  forM_ (lines file) $ \line ->
+  forM_ (lines file `zip` [1..]) $ \(line, n) ->
     case readMaybe line :: Maybe (Bool, Text, Text, Text, Text) of
       Nothing ->
         liftIO $ putStrLn $ mconcat
-          [ "Couldn't parse line:\n"
-          , "  ", line ]
+            [ "Couldn't parse line ", show n, ":\n"
+            , "  ", take 30 line, "..." ]
       Just (relevance, i, t, u, c) ->
         output $ Text.intercalate ","
           [ if relevance then "Related" else "Unrelated"

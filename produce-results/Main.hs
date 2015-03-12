@@ -10,20 +10,27 @@ import Data.Maybe
 import Data.Monoid
 import Data.STRef
 import Data.Text (Text)
+import Data.Tuple (swap)
+import Numeric.LinearAlgebra.HMatrix (Vector)
 import System.Environment (getArgs)
 import System.Exit (exitFailure)
 import System.Random (randomR, getStdRandom, RandomGen)
 import Text.Read (readMaybe)
+import qualified AI.HNN.FF.Network as Neural
 import qualified Data.Classifier.NaiveBayes as Classifier
 import qualified Data.Counter as Counter
+import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import qualified Numeric.LinearAlgebra.HMatrix as Vector
 import qualified System.IO as IO
 
 main :: IO ()
 main = getArgs >>= \case
   ["table", filename] ->
-    void $ table filename
+    table filename
+  ["neural", filename] ->
+    neural filename
   _ -> do
     putStrLn "Invalid arguments"
     exitFailure
@@ -38,6 +45,29 @@ table path = do
   IO.hSetBuffering IO.stdout IO.NoBuffering
   print results
   print $ Counter.fromList results
+
+neural :: FilePath -> IO ()
+neural path = do
+  file <- readFile path
+  let res = extractData file
+  shuffledRes <- getStdRandom $ shuffle $ classifierToVector $ createClassifier $ res
+  let (train, test) = splitAt (length shuffledRes `div` 2) shuffledRes
+  let vectorSize = Vector.size $ snd $ head $ train
+  network <- Neural.createNetwork vectorSize [] 1 :: IO (Neural.Network Double)
+  let result = Neural.trainNTimes 10 0.8 tanh tanh' network $ map swap train
+  let trials = map (\(x, y) -> (r $ head $ Vector.toList x, r $ head $ Vector.toList $ Neural.output result tanh y)) test
+  print $ Counter.fromList trials
+  where tanh' = Neural.tanh'
+        r = round :: Double -> Int
+
+classifierToVector :: Ord a => Classifier Bool a -> [(Vector Double, Vector Double)]
+classifierToVector (Classifier.toMap -> m) =
+  Map.foldrWithKey (\k v a -> fmap (((,) (f k)) . Vector.vector . map snd . Map.toAscList) v <> a) [] g
+  where
+    combined = Counter.toMap $ Map.foldr (mappend . mconcat) mempty m
+    f True = Vector.fromList [1]
+    f False = Vector.fromList [-1]
+    g = fmap (fmap (Map.mergeWithKey (\_ _ _ -> Just 1) (fmap (const 0)) (error "only in right") combined . Counter.toMap)) m
 
 applyClassifier :: [Row] -> [(Bool, Maybe Bool)]
 applyClassifier rows = foldl (collect classifier) [] $ take 100 test
