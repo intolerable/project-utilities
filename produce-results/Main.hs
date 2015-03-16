@@ -6,87 +6,93 @@ import Control.Monad.ST
 import Data.Array.ST
 import Data.Char
 import Data.Classifier (Classifier)
+import Data.Classifier.NaiveBayes (NaiveBayes)
+import Data.Counter (Counter)
 import Data.Maybe
 import Data.Monoid
 import Data.STRef
 import Data.Text (Text)
-import Data.Tuple (swap)
 import Numeric.LinearAlgebra.HMatrix (Vector)
 import System.Environment (getArgs)
 import System.Exit (exitFailure)
 import System.Random (randomR, getStdRandom, RandomGen)
 import Text.Read (readMaybe)
 import qualified AI.HNN.FF.Network as Neural
-import qualified Data.Classifier.NaiveBayes as Classifier
+import qualified Data.Classifier as Classifier
+import qualified Data.Classifier.NaiveBayes as NaiveBayes
 import qualified Data.Counter as Counter
 import qualified Data.Map as Map
-import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Numeric.LinearAlgebra.HMatrix as Vector
 import qualified System.IO as IO
 
 main :: IO ()
 main = getArgs >>= \case
-  ["table", filename] ->
-    table filename
-  ["neural", filename] ->
-    neural filename
+  ["bayes", filename] ->
+    readFile filename >>= print . bayes
+  ["neural", filename, (readMaybe -> Just trainTimes), (readMaybe -> Just layers)] ->
+    neural filename trainTimes layers
   _ -> do
     putStrLn "Invalid arguments"
     exitFailure
 
-table :: FilePath -> IO ()
-table path = do
-  file <- readFile path
-  let res = extractData file
-  print $ length (Set.toList (Set.fromList res)) == length res
-  shuffledRes <- getStdRandom $ shuffle $ Set.toList $ Set.fromList res
-  let results = applyClassifier shuffledRes
-  IO.hSetBuffering IO.stdout IO.NoBuffering
-  print results
-  print $ Counter.fromList results
+bayes :: String -> Counter (Bool, Maybe Bool)
+bayes file = Counter.fromList results
+  where res = extractData file
+        results = applyNaiveBayes (createClassifier res) res
 
-neural :: FilePath -> IO ()
-neural path = do
-  file <- readFile path
-  let res = extractData file
-  shuffledRes <- getStdRandom $ shuffle $ classifierToVector $ createClassifier $ res
-  let (train, test) = splitAt (length shuffledRes `div` 2) shuffledRes
-  let vectorSize = Vector.size $ snd $ head $ train
-  network <- Neural.createNetwork vectorSize [] 1 :: IO (Neural.Network Double)
-  let result = Neural.trainNTimes 10 0.8 tanh tanh' network $ map swap train
-  let trials = map (\(x, y) -> (r $ head $ Vector.toList x, r $ head $ Vector.toList $ Neural.output result tanh y)) test
-  print $ Counter.fromList trials
-  where tanh' = Neural.tanh'
-        r = round :: Double -> Int
+neural :: FilePath -> Int -> [Int] -> IO ()
+neural path times layers = do
+  shuffled <- readFile path >>= getStdRandom . shuffle . extractData
+  let (train, test) = splitAt (length shuffled `div` 2) shuffled
+  let trainClassifier = mconcat $ map rowToClassifier train
+  let vocab = vocabulary trainClassifier
+  let trainVectors = classifierToVector boolToVector vocab trainClassifier
+  let testVectors = classifierToVector boolToVector vocab $ mconcat $ map rowToClassifier test
+  case trainVectors of
+    [] -> putStrLn "No data"
+    (v, _) : _ -> do
+      network <- Neural.createNetwork (Vector.size v) layers 1
+      let result = Neural.trainNTimes times 0.8 Neural.tanh Neural.tanh' network trainVectors
+      let trials = map (\(x, y) -> (y, Vector.cmap r $ Neural.output result tanh x)) testVectors
+      IO.hSetBuffering IO.stdout IO.NoBuffering
+      print $ Counter.fromList trials
+      let result2 = Neural.trainNTimes (times * 10) 0.8 Neural.tanh Neural.tanh' network trainVectors
+      let trials2 = map (\(x, y) -> (y, Vector.cmap r $ Neural.output result2 tanh x)) testVectors
+      print $ Counter.fromList trials2
+  where r = (fromIntegral :: Int -> Double) . (round :: Double -> Int)
 
-classifierToVector :: Ord a => Classifier Bool a -> [(Vector Double, Vector Double)]
-classifierToVector (Classifier.toMap -> m) =
-  Map.foldrWithKey (\k v a -> fmap (((,) (f k)) . Vector.vector . map snd . Map.toAscList) v <> a) [] g
-  where
-    combined = Counter.toMap $ Map.foldr (mappend . mconcat) mempty m
-    f True = Vector.fromList [1]
-    f False = Vector.fromList [-1]
-    g = fmap (fmap (Map.mergeWithKey (\_ _ _ -> Just 1) (fmap (const 0)) (error "only in right") combined . Counter.toMap)) m
+boolToVector :: Bool -> Vector Double
+boolToVector True = 1
+boolToVector False = -1
 
-applyClassifier :: [Row] -> [(Bool, Maybe Bool)]
-applyClassifier rows = foldl (collect classifier) [] $ take 100 test
-  where
-    (train, test) = splitAt (length rows `div` 2) rows
-    classifier = createClassifier train
+vocabulary :: Ord b => Classifier a b -> Counter b
+vocabulary = Map.foldr (mappend . mconcat) mempty . Classifier.toMap
 
-collect :: Classifier Bool Text -> [(Bool, Maybe Bool)] -> Row -> [(Bool, Maybe Bool)]
+counterToVector :: Ord a => Counter a -> Counter a -> Vector Double
+counterToVector (Counter.toMap -> vocab) (Counter.toMap -> m) =
+  Vector.vector $ map snd $ Map.toAscList $ Map.mergeWithKey (\_ v _ -> Just $ fromIntegral v) (const mempty) (fmap (const 0)) m vocab
+
+classifierToVector :: (Ord a, Ord b) => (a -> Vector Double) -> Counter b -> Classifier a b -> [(Vector Double, Vector Double)]
+classifierToVector f vocab (Classifier.toMap -> m) =
+  Map.foldrWithKey (\k v a -> fmap ((,) <$> counterToVector vocab <*> pure (f k)) v <> a) [] m
+
+applyNaiveBayes :: NaiveBayes Bool Text -> [Row] -> [(Bool, Maybe Bool)]
+applyNaiveBayes classifier rows =
+  foldl (\ a t -> collect (NaiveBayes.remove (rowToClassifier t) classifier) a t) [] rows
+
+collect :: NaiveBayes Bool Text -> [(Bool, Maybe Bool)] -> Row -> [(Bool, Maybe Bool)]
 collect cls acc (b, _, _, _, c) =
   (b, tested) : acc
-  where tested = Classifier.test cls $ Counter.fromList $ process c
+  where tested = NaiveBayes.test cls $ Counter.fromList $ process c
 
 type Row = (Bool, Text, Text, Text, Text)
 
 extractData :: String -> [Row]
 extractData = mapMaybe readMaybe . lines
 
-createClassifier :: [Row] -> Classifier Bool Text
-createClassifier = mconcat . map rowToClassifier
+createClassifier :: [Row] -> NaiveBayes Bool Text
+createClassifier = mconcat . map (NaiveBayes.fromClassifier . rowToClassifier)
 
 rowToClassifier :: Row -> Classifier Bool Text
 rowToClassifier (b, _, _, _, c) = Classifier.singleton b $ Counter.fromList $ process c
@@ -96,9 +102,6 @@ for = flip map
 
 genTable :: (Show a, Show b) => Classifier a b -> Text
 genTable _ = Text.empty
-
-tableList :: (Show a, Show b, Ord a, Ord b) => Classifier a b -> [[Text]]
-tableList c = [[tshow $ Classifier.priors c]]
 
 tshow :: Show a => a -> Text
 tshow = Text.pack . show
