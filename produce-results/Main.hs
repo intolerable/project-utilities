@@ -53,14 +53,17 @@ neural path times layers = do
     [] -> putStrLn "No data"
     (v, _) : _ -> do
       network <- Neural.createNetwork (Vector.size v) layers 1
-      let result = Neural.trainNTimes times 0.8 Neural.tanh Neural.tanh' network trainVectors
-      let trials = map (\(x, y) -> (y, Vector.cmap r $ Neural.output result tanh x)) testVectors
       IO.hSetBuffering IO.stdout IO.NoBuffering
-      print $ Counter.fromList trials
-      let result2 = Neural.trainNTimes (times * 10) 0.8 Neural.tanh Neural.tanh' network trainVectors
-      let trials2 = map (\(x, y) -> (y, Vector.cmap r $ Neural.output result2 tanh x)) testVectors
-      print $ Counter.fromList trials2
+      void $ iterateM 10 (\(n, net) -> let newNet = trainNet net trainVectors in print (n + times) >> (print $ Counter.fromList $ map (\(x, y) -> (y, Vector.cmap r $ Neural.output newNet tanh x)) testVectors ) >> return (n + times, newNet)) (0 :: Int, network)
   where r = (fromIntegral :: Int -> Double) . (round :: Double -> Int)
+        trainNet n v = Neural.trainNTimes times 0.8 Neural.tanh Neural.tanh' n v
+
+iterateM :: Monad m => Int -> (a -> m a) -> a -> m [a]
+iterateM 0 _ _ = return []
+iterateM n f a = do
+  v <- f a
+  next <- iterateM (n - 1) f v
+  return $ v : next
 
 boolToVector :: Bool -> Vector Double
 boolToVector True = 1
