@@ -1,4 +1,4 @@
-module Main where
+module Main (main) where
 
 import Control.Applicative
 import Control.Monad
@@ -12,7 +12,9 @@ import Data.Maybe
 import Data.Monoid
 import Data.STRef
 import Data.Text (Text)
+import Data.Time.Clock
 import Numeric.LinearAlgebra.HMatrix (Vector)
+import Prelude
 import System.Environment (getArgs)
 import System.Exit (exitFailure)
 import System.Random (randomR, getStdRandom, RandomGen)
@@ -29,12 +31,52 @@ import qualified System.IO as IO
 main :: IO ()
 main = getArgs >>= \case
   ["bayes", filename] ->
-    readFile filename >>= print . bayes
-  ["neural", filename, (readMaybe -> Just trainTimes), (readMaybe -> Just layers)] ->
+    void $ evaluateBayes filename
+  ["neural", filename, readMaybe -> Just trainTimes, readMaybe -> Just layers] ->
     neural filename trainTimes layers
+  ["everything", filename] -> do
+    void $ evaluateBayes filename
+    neural filename 10 []
+    neural filename 100 []
+    neural filename 1000 []
+    neural filename 10 [10]
+    neural filename 100 [10]
+    neural filename 1000 [10]
+    neural filename 10 [100]
+    neural filename 100 [100]
+    neural filename 1000 [100]
+    neural filename 10 [100, 50]
+    neural filename 100 [100, 50]
+    neural filename 1000 [100, 50]
   _ -> do
     putStrLn "Invalid arguments"
     exitFailure
+
+evaluateBayes :: FilePath -> IO (Counter (Bool, Maybe Bool))
+evaluateBayes fp = do
+  file <- readFile fp
+  startTime <- getCurrentTime
+  let res = extractData file
+  let classifier = createClassifier res
+  print classifier
+  printTimeDiff startTime
+  evalStartTime <- getCurrentTime
+  let counted = Counter.fromList $ applyNaiveBayes classifier res
+  print counted
+  printTimeDiff evalStartTime
+  return counted
+
+printTimeDiff :: UTCTime -> IO ()
+printTimeDiff s = do
+  e <- getCurrentTime
+  print $ e `diffUTCTime` s
+
+time :: IO a -> IO (a, NominalDiffTime)
+time act = do
+  startTime <- getCurrentTime
+  res <- act
+  endTime <- getCurrentTime
+  return (res, endTime `diffUTCTime` startTime)
 
 bayes :: String -> Counter (Bool, Maybe Bool)
 bayes file = Counter.fromList results
@@ -52,17 +94,29 @@ neural path times layers = do
   case trainVectors of
     [] -> putStrLn "No data"
     (v, _) : _ -> do
+      startTime <- getCurrentTime
       network <- Neural.createNetwork (Vector.size v) layers 1
       IO.hSetBuffering IO.stdout IO.NoBuffering
-      void $ iterateM 10 (\(n, net) -> let newNet = trainNet net trainVectors in print (n + times) >> (print $ Counter.fromList $ map (\(x, y) -> (y, Vector.cmap r $ Neural.output newNet tanh x)) testVectors ) >> return (n + times, newNet)) (0 :: Int, network)
+      void $ iterateM 9 (0 :: Int, network, 0) $ \(n, net, timeTakenEvaluating) -> do
+        let newNet = trainNet net trainVectors
+        print layers
+        print (n + times)
+        print newNet
+        endTime <- getCurrentTime
+        print $ (endTime `diffUTCTime` startTime) - timeTakenEvaluating
+        evalStartTime <- getCurrentTime
+        print $ Counter.fromList $ map (\(x, y) -> (y, Vector.cmap r $ Neural.output newNet tanh x)) testVectors
+        evalEndTime <- getCurrentTime
+        print $ evalEndTime `diffUTCTime` evalStartTime
+        return (n + times, newNet, timeTakenEvaluating + (evalEndTime `diffUTCTime` evalStartTime))
   where r = (fromIntegral :: Int -> Double) . (round :: Double -> Int)
-        trainNet n v = Neural.trainNTimes times 0.8 Neural.tanh Neural.tanh' n v
+        trainNet = Neural.trainNTimes times 0.8 Neural.tanh Neural.tanh'
 
-iterateM :: Monad m => Int -> (a -> m a) -> a -> m [a]
+iterateM :: Monad m => Int -> a -> (a -> m a) -> m [a]
 iterateM 0 _ _ = return []
-iterateM n f a = do
+iterateM n a f = do
   v <- f a
-  next <- iterateM (n - 1) f v
+  next <- iterateM (n - 1) v f
   return $ v : next
 
 boolToVector :: Bool -> Vector Double
