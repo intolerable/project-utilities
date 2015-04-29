@@ -26,7 +26,7 @@ generateAutoencoderIO v l e = do
     _ -> error "colossal failure"
 
 encode :: Encoder -> Vector Double -> Vector Double
-encode (Encoder m) v = Vector.app m v
+encode (Encoder m) v = Vector.app m $ Vector.vjoin [v, 1]
 
 decode :: Decoder -> Vector Double -> Vector Double
-decode (Decoder m) v = Vector.app m v
+decode (Decoder m) v = Vector.app m $ Vector.vjoin [v, 1]
