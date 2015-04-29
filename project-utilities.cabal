@@ -42,7 +42,7 @@ executable pull-comments
 
 executable produce-results
   main-is:             Main.hs
-  other-modules:
+  other-modules: Autoencoder
   build-depends:
     base >=4.7 && <4.9,
     array,

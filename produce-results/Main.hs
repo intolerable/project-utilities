@@ -1,5 +1,7 @@
 module Main (main) where
 
+import Autoencoder
+
 import Control.Applicative
 import Control.Monad
 import Control.Monad.ST
@@ -34,23 +36,40 @@ main = getArgs >>= \case
     void $ evaluateBayes filename
   ["neural", filename, readMaybe -> Just trainTimes, readMaybe -> Just layers] ->
     neural filename trainTimes layers
+  ["generate_autoencoder", filename] -> do
+    t <- getCurrentTime
+    autoencoder filename >>= print
+    getCurrentTime >>= print . (`diffUTCTime` t)
   ["everything", filename] -> do
-    void $ evaluateBayes filename
-    neural filename 10 []
-    neural filename 100 []
-    neural filename 1000 []
-    neural filename 10 [10]
-    neural filename 100 [10]
-    neural filename 1000 [10]
-    neural filename 10 [100]
-    neural filename 100 [100]
-    neural filename 1000 [100]
+    --void $ evaluateBayes filename
+    --neural filename 10 []
+    --neural filename 100 []
+    --neural filename 1000 []
+    --neural filename 10 [10]
+    --neural filename 100 [10]
+    --neural filename 1000 [10]
+    --neural filename 10 [100]
+    --neural filename 100 [100]
+    --neural filename 1000 [100]
+    --neural filename 10000 [10]
     neural filename 10 [100, 50]
     neural filename 100 [100, 50]
     neural filename 1000 [100, 50]
   _ -> do
     putStrLn "Invalid arguments"
     exitFailure
+
+autoencoder :: FilePath -> IO Autoencoder
+autoencoder path = do
+  shuffled <- readFile path >>= getStdRandom . shuffle . extractData
+  let (train, test) = splitAt (length shuffled `div` 2) shuffled
+  let trainClassifier = mconcat $ map rowToClassifier train
+  let vocab = vocabulary trainClassifier
+  let trainVectors = classifierToVector boolToVector vocab trainClassifier
+  let testVectors = classifierToVector boolToVector vocab $ mconcat $ map rowToClassifier test
+  case trainVectors of
+    [] -> error "no data"
+    v -> generateAutoencoderIO (map fst v) 10 1000
 
 evaluateBayes :: FilePath -> IO (Counter (Bool, Maybe Bool))
 evaluateBayes fp = do
@@ -70,13 +89,6 @@ printTimeDiff :: UTCTime -> IO ()
 printTimeDiff s = do
   e <- getCurrentTime
   print $ e `diffUTCTime` s
-
-time :: IO a -> IO (a, NominalDiffTime)
-time act = do
-  startTime <- getCurrentTime
-  res <- act
-  endTime <- getCurrentTime
-  return (res, endTime `diffUTCTime` startTime)
 
 bayes :: String -> Counter (Bool, Maybe Bool)
 bayes file = Counter.fromList results
@@ -153,15 +165,6 @@ createClassifier = mconcat . map (NaiveBayes.fromClassifier . rowToClassifier)
 
 rowToClassifier :: Row -> Classifier Bool Text
 rowToClassifier (b, _, _, _, c) = Classifier.singleton b $ Counter.fromList $ process c
-
-for :: [a] -> (a -> b) -> [b]
-for = flip map
-
-genTable :: (Show a, Show b) => Classifier a b -> Text
-genTable _ = Text.empty
-
-tshow :: Show a => a -> Text
-tshow = Text.pack . show
 
 process :: Text -> [Text]
 process = filter (not . Text.null) .
