@@ -59,7 +59,7 @@ main = getArgs >>= \case
     putStrLn "Invalid arguments"
     exitFailure
 
-autoencoder :: FilePath -> IO Autoencoder
+autoencoder :: FilePath -> IO (Counter Text, Autoencoder)
 autoencoder path = do
   shuffled <- readFile path >>= getStdRandom . shuffle . extractData
   let (train, test) = splitAt (length shuffled `div` 2) shuffled
@@ -69,7 +69,9 @@ autoencoder path = do
   let testVectors = classifierToVector boolToVector vocab $ mconcat $ map rowToClassifier test
   case trainVectors of
     [] -> error "no data"
-    v -> generateAutoencoderIO (map fst v) 10 1000
+    v -> do
+      res <- generateAutoencoderIO (map fst v) 10 1000
+      return (vocab, res)
 
 evaluateBayes :: FilePath -> IO (Counter (Bool, Maybe Bool))
 evaluateBayes fp = do
