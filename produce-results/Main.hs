@@ -40,6 +40,9 @@ main = getArgs >>= \case
     t <- getCurrentTime
     autoencoder filename >>= print
     getCurrentTime >>= print . (`diffUTCTime` t)
+  ["apply_autoencoder", encoder, filename] -> do
+    (v, (e, _)) <- read <$> readFile encoder :: IO (Counter Text, Autoencoder)
+    applyAutoencoder v e filename 10 []
   ["everything", filename] -> do
     --void $ evaluateBayes filename
     --neural filename 10 []
@@ -58,6 +61,33 @@ main = getArgs >>= \case
   _ -> do
     putStrLn "Invalid arguments"
     exitFailure
+
+applyAutoencoder :: Counter Text -> Encoder -> FilePath -> Int -> [Int] -> IO ()
+applyAutoencoder vocab encoder path times layers = do
+  shuffled <- readFile path >>= getStdRandom . shuffle . extractData
+  let (train, test) = splitAt (length shuffled `div` 2) shuffled
+  let trainVectors = map (\(x, y) -> (encode encoder x, y)) $ classifierToVector boolToVector vocab $ mconcat $ map rowToClassifier train
+  let testVectors = map (\(x, y) -> (encode encoder x, y)) $ classifierToVector boolToVector vocab $ mconcat $ map rowToClassifier test
+  case trainVectors of
+    [] -> putStrLn "No data"
+    (v, _) : _ -> do
+      startTime <- getCurrentTime
+      network <- Neural.createNetwork (Vector.size v) layers 1
+      IO.hSetBuffering IO.stdout IO.NoBuffering
+      void $ iterateM 9 (0 :: Int, network, 0) $ \(n, net, timeTakenEvaluating) -> do
+        let newNet = trainNet net trainVectors
+        print layers
+        print (n + times)
+        print newNet
+        endTime <- getCurrentTime
+        print $ (endTime `diffUTCTime` startTime) - timeTakenEvaluating
+        evalStartTime <- getCurrentTime
+        print $ Counter.fromList $ map (\(x, y) -> (y, Vector.cmap r $ Neural.output newNet tanh x)) testVectors
+        evalEndTime <- getCurrentTime
+        print $ evalEndTime `diffUTCTime` evalStartTime
+        return (n + times, newNet, timeTakenEvaluating + (evalEndTime `diffUTCTime` evalStartTime))
+  where r = (fromIntegral :: Int -> Double) . (round :: Double -> Int)
+        trainNet = Neural.trainNTimes times 0.8 Neural.tanh Neural.tanh'
 
 autoencoder :: FilePath -> IO (Counter Text, Autoencoder)
 autoencoder path = do
