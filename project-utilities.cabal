@@ -63,3 +63,22 @@ executable produce-results
     OverloadedStrings
     ViewPatterns
   ghc-options: -Wall -O2
+
+executable parse-output
+  main-is: Main.hs
+  build-depends:
+    base >= 4.7 && < 4.9,
+    attoparsec,
+    bytestring,
+    cassava,
+    containers,
+    data-counter,
+    text,
+    vector
+  hs-source-dirs: parse-output
+  default-language: Haskell2010
+  default-extensions:
+    LambdaCase
+    OverloadedStrings
+    ViewPatterns
+  ghc-options: -Wall -O2

@@ -37,6 +37,8 @@ main = getArgs >>= \case
   ["neural", filename, readMaybe -> Just trainTimes, readMaybe -> Just layers] ->
     neural filename trainTimes layers
   ["generate_autoencoder", filename] -> do
+    IO.hSetBuffering IO.stdout IO.NoBuffering
+    putStrLn "ok go"
     t <- getCurrentTime
     autoencoder filename >>= print
     getCurrentTime >>= print . (`diffUTCTime` t)
@@ -44,6 +46,7 @@ main = getArgs >>= \case
     (v, (e, _)) <- read <$> readFile encoder :: IO (Counter Text, Autoencoder)
     applyAutoencoder v e filename 10 []
   ["everything", filename] -> do
+    return ()
     --void $ evaluateBayes filename
     --neural filename 10 []
     --neural filename 100 []
@@ -55,9 +58,9 @@ main = getArgs >>= \case
     --neural filename 100 [100]
     --neural filename 1000 [100]
     --neural filename 10000 [10]
-    neural filename 10 [100, 50]
-    neural filename 100 [100, 50]
-    neural filename 1000 [100, 50]
+    --neural filename 10 [100, 50]
+    --neural filename 100 [100, 50]
+    --neural filename 1000 [100, 50]
   _ -> do
     putStrLn "Invalid arguments"
     exitFailure
@@ -67,6 +70,7 @@ applyAutoencoder vocab encoder path times layers = do
   shuffled <- readFile path >>= getStdRandom . shuffle . extractData
   let (train, test) = splitAt (length shuffled `div` 2) shuffled
   let trainVectors = map (\(x, y) -> (encode encoder x, y)) $ classifierToVector boolToVector vocab $ mconcat $ map rowToClassifier train
+  print $ head trainVectors
   let testVectors = map (\(x, y) -> (encode encoder x, y)) $ classifierToVector boolToVector vocab $ mconcat $ map rowToClassifier test
   case trainVectors of
     [] -> putStrLn "No data"
@@ -100,7 +104,7 @@ autoencoder path = do
   case trainVectors of
     [] -> error "no data"
     v -> do
-      res <- generateAutoencoderIO (map fst v) 10 1000
+      res <- generateAutoencoderIO (map fst v) 1000 1000
       return (vocab, res)
 
 evaluateBayes :: FilePath -> IO (Counter (Bool, Maybe Bool))
