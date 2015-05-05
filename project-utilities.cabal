@@ -82,3 +82,22 @@ executable parse-output
     OverloadedStrings
     ViewPatterns
   ghc-options: -Wall -O2
+
+executable chart-generator
+  main-is: Main.hs
+  build-depends:
+    base >= 4.7 && < 4.9,
+    bytestring,
+    cassava,
+    Chart,
+    Chart-diagrams,
+    containers,
+    data-counter,
+    text
+  hs-source-dirs: chart-generator
+  default-language: Haskell2010
+  default-extensions:
+    LambdaCase
+    OverloadedStrings
+    ViewPatterns
+  ghc-options: -Wall -O2
