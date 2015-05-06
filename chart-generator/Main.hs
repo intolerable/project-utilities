@@ -17,9 +17,6 @@ import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.Csv as CSV
 import qualified Data.Vector as Vector
 import qualified Data.Map as Map
-import Debug.Trace
-
-ts x = traceShow x x
 
 main :: IO ()
 main = getArgs >>= go
@@ -39,26 +36,29 @@ charts hs es = do
   void $ renderableToFile (def & fo_format .~ EPS) "../document-project/images/chart1.eps" (toRenderable $ chart1 hs es)
   void $ renderableToFile (def & fo_format .~ SVG) "../document-project/images/chart1.svg" (toRenderable $ chart1 hs es)
 
-chart1 :: [ByteString] -> [Map ByteString ByteString] -> Layout Double Double
+chart1 :: [ByteString] -> [Map ByteString ByteString] -> Layout LogValue Percent
 chart1 hs es =
   def & layout_plots .~ plots
+      & layout_all_font_styles.font_size *~ 2
   where
     relevants = filter (\m -> m ! "layers" == "[]") es
-    field :: ByteString -> PlotPoints Double Double
-    field x =
+    --field :: ByteString -> PlotLines LogValue Double
+    field x c =
       def
-        & plot_points_values .~
-          map (\x -> (fromIntegral x, 2)) [1..10]
-        & plot_points_style .~ (def & point_radius .~ 0.5)
-        -- & plot_lines_style .~ solidLine 0. (opaque blue)
+        & plot_lines_values .~
+          [map (\m -> (LogValue $ bread (m ! "train epochs"), Percent $ bread (m ! x))) relevants]
+        & plot_lines_style .~ solidLine 5 (opaque c)
+        & plot_lines_title .~ ByteString.unpack x
     plots =
-      [ toPlot $ field "true positive"
-      , toPlot $ field "true negative"
-      , toPlot $ field "false positive"
-      , toPlot $ field "false negative" ]
-    --bread = read . ByteString.unpack
+      [ toPlot $ field "precision" green
+      , toPlot $ field "recall" red ]
+    bread = read . ByteString.unpack
 
 (!) :: Ord a => Map a b -> a -> b
 m ! k = case Map.lookup k m of
   Just x -> x
   Nothing -> error "Missing key"
+
+setLinesBlue :: PlotLines a b -> PlotLines a b
+setLinesBlue = plot_lines_style  . line_color .~ opaque blue
+

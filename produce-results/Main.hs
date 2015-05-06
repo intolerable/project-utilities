@@ -38,7 +38,6 @@ main = getArgs >>= \case
     neural filename trainTimes layers
   ["generate_autoencoder", filename] -> do
     IO.hSetBuffering IO.stdout IO.NoBuffering
-    putStrLn "ok go"
     t <- getCurrentTime
     autoencoder filename >>= print
     getCurrentTime >>= print . (`diffUTCTime` t)
@@ -46,21 +45,20 @@ main = getArgs >>= \case
     (v, (e, _)) <- read <$> readFile encoder :: IO (Counter Text, Autoencoder)
     applyAutoencoder v e filename 10 []
   ["everything", filename] -> do
-    return ()
-    --void $ evaluateBayes filename
-    --neural filename 10 []
-    --neural filename 100 []
-    --neural filename 1000 []
-    --neural filename 10 [10]
-    --neural filename 100 [10]
-    --neural filename 1000 [10]
-    --neural filename 10 [100]
-    --neural filename 100 [100]
-    --neural filename 1000 [100]
-    --neural filename 10000 [10]
-    --neural filename 10 [100, 50]
-    --neural filename 100 [100, 50]
-    --neural filename 1000 [100, 50]
+    void $ evaluateBayes filename
+    neural filename 10 []
+    neural filename 100 []
+    neural filename 1000 []
+    neural filename 10 [10]
+    neural filename 100 [10]
+    neural filename 1000 [10]
+    neural filename 10 [100]
+    neural filename 100 [100]
+    neural filename 1000 [100]
+    neural filename 10000 [10]
+    neural filename 10 [100, 50]
+    neural filename 100 [100, 50]
+    neural filename 1000 [100, 50]
   _ -> do
     putStrLn "Invalid arguments"
     exitFailure
