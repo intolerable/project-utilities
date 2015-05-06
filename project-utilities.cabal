@@ -7,7 +7,7 @@ maintainer:          fraser.m.murray@gmail.com
 build-type:          Simple
 cabal-version:       >=1.10
 
-executable comment-to-arff
+executable post-to-arff
   main-is:             Main.hs
   other-modules:
   build-depends:
@@ -15,13 +15,13 @@ executable comment-to-arff
     strict,
     text,
     transformers
-  hs-source-dirs:      comment-to-arff
+  hs-source-dirs:      post-to-arff
   default-language:    Haskell2010
   default-extensions:
     LambdaCase
     OverloadedStrings
 
-executable pull-comments
+executable pull-posts
   main-is:             Main.hs
   other-modules:
   build-depends:
@@ -32,7 +32,7 @@ executable pull-comments
     stm,
     stm-chans,
     transformers
-  hs-source-dirs:      pull-comments
+  hs-source-dirs:      pull-posts
   default-language:    Haskell2010
   default-extensions:
     LambdaCase
