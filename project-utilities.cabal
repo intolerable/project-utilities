@@ -87,12 +87,15 @@ executable chart-generator
   main-is: Main.hs
   build-depends:
     base >= 4.7 && < 4.9,
-    bytestring,
-    cassava,
     Chart,
     Chart-diagrams,
+    bytestring,
+    cassava,
+    colour,
     containers,
     data-counter,
+    data-default-class,
+    lens,
     text,
     vector
   hs-source-dirs: chart-generator
