@@ -68,7 +68,6 @@ applyAutoencoder vocab encoder path times layers = do
   shuffled <- readFile path >>= getStdRandom . shuffle . extractData
   let (train, test) = splitAt (length shuffled `div` 2) shuffled
   let trainVectors = map (\(x, y) -> (encode encoder x, y)) $ classifierToVector boolToVector vocab $ mconcat $ map rowToClassifier train
-  print $ head trainVectors
   let testVectors = map (\(x, y) -> (encode encoder x, y)) $ classifierToVector boolToVector vocab $ mconcat $ map rowToClassifier test
   case trainVectors of
     [] -> putStrLn "No data"
