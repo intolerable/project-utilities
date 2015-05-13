@@ -206,6 +206,7 @@ process = filter (not . Text.null) .
           Text.splitOn " " .
           Text.filter (not . (== '-'))
 
+-- shuffle from the haskell wiki @ https://wiki.haskell.org/Random_shuffle
 shuffle :: RandomGen g => [a] -> g -> ([a], g)
 shuffle xs gen = runST $ do
     g <- newSTRef gen
