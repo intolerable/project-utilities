@@ -95,6 +95,10 @@ executable chart-generator
     containers,
     data-counter,
     data-default-class,
+    diagrams,
+    diagrams-lib,
+    diagrams-postscript,
+    filepath,
     lens,
     text,
     vector
